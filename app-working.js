@@ -9,6 +9,17 @@ var io = require('socket.io')(app);
 var fs = require('fs');
 var _ = require('underscore');
 var wpimg = require('wikipedia-image');
+var Pusher = require('pusher-client');  // incoming data from Panoptes
+let pusherSocket = '79e8e05ea522377ba6db';
+let socket = new Pusher(pusherSocket, {
+    encrypted: true
+  });
+let socketP = new Pusher(pusherSocket, {
+    encrypted: true
+  });
+
+var amqpSocket = require('socket.io-client')('http://localhost:9002');
+
 // var config = require('./config');
 
 // app.timeout = 0;// trying to fix a stupid error
@@ -492,7 +503,49 @@ io.on('connection', function(socket) {
 		// console.log("emitting filter:", filter);
 		++temp_user_cnt;
 	});
+	
+//	socket.on('classification', function(data){
+//		console.log("classification event received");
+//	});
 
+});
+
+amqpSocket.on('spinn3r', function(data){
+	emitMsg('spinn3r', data);
+	console.log('on spinn3r');
+	//console.log(data);
+});
+
+amqpSocket.on('wikipedia_revisions', function(data){
+	emitMsg('wikipedia_revisions', data);
+});
+
+amqpSocket.on('twitter_delete', function(data){
+	emitMsg('twitter_delete', data);
+});
+
+amqpSocket.on('twitter_delete_pulse', function(data){
+	emitMsg('twitter_delete_pulse', data);
+});
+
+amqpSocket.on('twitter', function(data){
+	emitMsg('twitter', data);
+});
+
+amqpSocket.on('zooniverse_classifications', function(data){
+	emitMsg('zooniverse_classifications', data);
+});
+
+amqpSocket.on('zooniverse_talk', function(data){
+	emitMsg('zooniverse_talk', data);
+});
+
+amqpSocket.on('twitter_moocs', function(data){
+	emitMsg('twitter_moocs', data);
+});
+
+amqpSocket.on('twitter_uk_southampton', function(data){
+	emitMsg('twitter_uk_southampton', data);
 });
 
 function emit_processed_message_count() {
@@ -669,6 +722,23 @@ var emitMsg = function(outName, msg) {
 	}
 }
 
+//Panoptes stuff
+let classificationEvents = socketP.subscribe('panoptes');
+classificationEvents.bind('classification',
+  function(data) {
+	//console.log("classification event");
+	io.sockets.emit('classification', data);
+  }
+);
+
+let commentEvents = socketP.subscribe('talk');
+commentEvents.bind('comment',
+  function (data) {
+	//console.log("comment event");
+    io.sockets.emit('comment', data);
+  }
+);
+
 var connectQueue = function(queueName, outName) {
 	return amqp.connect("amqp://admin:Sociam2015@sotonwo.cloudapp.net:5672")
 			.then(
@@ -711,97 +781,97 @@ var connectQueue = function(queueName, outName) {
 					});
 };
 
-var connectQueueTwo = function(queueName, outName) {
-	return amqp.connect("amqp://wsi-h1.soton.ac.uk").then(function(conn) {
-
-		process.once('SIGINT', function() {
-			conn.close();
-		});
-		return conn.createChannel().then(function(ch) {
-			var ok = ch.assertExchange(queueName, 'fanout', {
-				durable : false
-			});
-
-			ok = ok.then(function() {
-				return ch.assertQueue('', {
-					exclusive : true
-				});
-			});
-
-			ok = ok.then(function(qok) {
-				return ch.bindQueue(qok.queue, queueName, '').then(function() {
-					return qok.queue;
-				});
-			});
-
-			ok = ok.then(function(queue) {
-				// function(msg, room)
-				return ch.consume(queue, function(msg) {
-					emitMsg(outName, msg);
-				}, {
-					noAck : true
-				});
-			});
-
-			return ok;
-		});
-	});
-};
-
-// var connect = connectQueue("wikipedia_hose", "wikipedia_revisions");
-// connect = connect.then(function() { return connectQueue("twitter_hose",
-// "tweets"); }, showErr);
-// connect = connect.then(function() { return connectQueue("trends_hose",
-// "trends"); }, showErr);
-
-// for the larger spinn3r connection
-var connect = connectQueueTwo("twitter_double", "spinn3r");
-
-// connect = connect.then(function() { return connectQueueTwo("twitter_double",
-// "spinn3r"); }, showErr);
-// Wiki on the cluster
-connect = connect.then(function() {
-	return connectQueueTwo("wikipedia_hose", "wikipedia_revisions");
-}, showErr);
-
-connect = connect.then(function() {
-	return connectQueueTwo("twitter_delete_hose", "twitter_delete");
-}, showErr);
-
-connect = connect.then(
-		function() {
-			return connectQueueTwo("twitter_delete_pulse_hose",
-					"twitter_delete_pulse");
-		}, showErr);
-
-connect = connect.then(function() {
-	return connectQueueTwo("twitter_double", "twitter");
-}, showErr);
-
-// connect = connect.then(function() { return connectQueueTwo("news_hose",
-// "news"); }, showErr);
-
-connect = connect.then(function() {
-	return connectQueueTwo("zooniverse_classifications",
-			"zooniverse_classifications");
-}, showErr);
-connect = connect.then(function() {
-	return connectQueueTwo("zooniverse_talk", "zooniverse_talk");
-}, showErr);
-
-connect = connect.then(function() {
-	return connectQueueTwo("twitter_moocs", "twitter_moocs");
-}, showErr);
-// connect = connect.then(function() { return connectQueueTwo("twitter_moocs",
-// "spinn3r"); }, showErr);
-connect = connect.then(function() {
-	return connectQueueTwo("twitter_uk_southampton", "spinn3r");
-}, showErr);
-connect = connect.then(function() {
-	return connectQueueTwo("twitter_uk_southampton", "twitter_uk_southampton");
-}, showErr);
-
-// Finally, are we ready?
-connect = connect.then(function() {
-	console.log("Ready at:" + startup_date);
-}, showErr);
+//var connectQueueTwo = function(queueName, outName) {
+//	return amqp.connect("amqp://wsi-h1.soton.ac.uk").then(function(conn) {
+//
+//		process.once('SIGINT', function() {
+//			conn.close();
+//		});
+//		return conn.createChannel().then(function(ch) {
+//			var ok = ch.assertExchange(queueName, 'fanout', {
+//				durable : false
+//			});
+//
+//			ok = ok.then(function() {
+//				return ch.assertQueue('', {
+//					exclusive : true
+//				});
+//			});
+//
+//			ok = ok.then(function(qok) {
+//				return ch.bindQueue(qok.queue, queueName, '').then(function() {
+//					return qok.queue;
+//				});
+//			});
+//
+//			ok = ok.then(function(queue) {
+//				// function(msg, room)
+//				return ch.consume(queue, function(msg) {
+//					emitMsg(outName, msg);
+//				}, {
+//					noAck : true
+//				});
+//			});
+//
+//			return ok;
+//		});
+//	});
+//};
+//
+//// var connect = connectQueue("wikipedia_hose", "wikipedia_revisions");
+//// connect = connect.then(function() { return connectQueue("twitter_hose",
+//// "tweets"); }, showErr);
+//// connect = connect.then(function() { return connectQueue("trends_hose",
+//// "trends"); }, showErr);
+//
+//// for the larger spinn3r connection
+//var connect = connectQueueTwo("twitter_double", "spinn3r");
+//
+//// connect = connect.then(function() { return connectQueueTwo("twitter_double",
+//// "spinn3r"); }, showErr);
+//// Wiki on the cluster
+//connect = connect.then(function() {
+//	return connectQueueTwo("wikipedia_hose", "wikipedia_revisions");
+//}, showErr);
+//
+//connect = connect.then(function() {
+//	return connectQueueTwo("twitter_delete_hose", "twitter_delete");
+//}, showErr);
+//
+//connect = connect.then(
+//		function() {
+//			return connectQueueTwo("twitter_delete_pulse_hose",
+//					"twitter_delete_pulse");
+//		}, showErr);
+//
+//connect = connect.then(function() {
+//	return connectQueueTwo("twitter_double", "twitter");
+//}, showErr);
+//
+//// connect = connect.then(function() { return connectQueueTwo("news_hose",
+//// "news"); }, showErr);
+//
+//connect = connect.then(function() {
+//	return connectQueueTwo("zooniverse_classifications",
+//			"zooniverse_classifications");
+//}, showErr);
+//connect = connect.then(function() {
+//	return connectQueueTwo("zooniverse_talk", "zooniverse_talk");
+//}, showErr);
+//
+//connect = connect.then(function() {
+//	return connectQueueTwo("twitter_moocs", "twitter_moocs");
+//}, showErr);
+//// connect = connect.then(function() { return connectQueueTwo("twitter_moocs",
+//// "spinn3r"); }, showErr);
+//connect = connect.then(function() {
+//	return connectQueueTwo("twitter_uk_southampton", "spinn3r");
+//}, showErr);
+//connect = connect.then(function() {
+//	return connectQueueTwo("twitter_uk_southampton", "twitter_uk_southampton");
+//}, showErr);
+//
+//// Finally, are we ready?
+//connect = connect.then(function() {
+//	console.log("Ready at:" + startup_date);
+//}, showErr);
